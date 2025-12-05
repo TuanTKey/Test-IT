@@ -171,8 +171,10 @@ exports.runCode = async (req, res) => {
       },
       cpp: { 
         ext: 'cpp', 
-        compile: (f) => `g++ "${f}" -o "${f}.out"`, 
-        cmd: (f) => process.platform === 'win32' ? `"${f}.exe"` : `"${f}.out"` 
+        compile: (f) => process.platform === 'win32' 
+          ? `g++ "${f}" -o "${f.replace('.cpp', '.exe')}"` 
+          : `g++ "${f}" -o "${f}.out"`, 
+        cmd: (f) => process.platform === 'win32' ? `"${f}"` : `"${f}.out"` 
       },
       java: { 
         ext: 'java', 
@@ -190,7 +192,9 @@ exports.runCode = async (req, res) => {
     const tempDir = path.join(os.tmpdir(), `code_runner_${Date.now()}`);
     await fs.mkdir(tempDir, { recursive: true });
 
-    const filename = path.join(tempDir, `solution.${config.ext}`);
+    // Java requires filename to match class name (Solution.java)
+    const baseFilename = language === 'java' ? 'Solution' : 'solution';
+    const filename = path.join(tempDir, `${baseFilename}.${config.ext}`);
     await fs.writeFile(filename, code);
 
     let executablePath = filename;
@@ -214,7 +218,9 @@ exports.runCode = async (req, res) => {
       
       // Update executable path for compiled languages
       if (language === 'cpp') {
-        executablePath = process.platform === 'win32' ? `${filename}.exe` : `${filename}.out`;
+        executablePath = process.platform === 'win32' 
+          ? filename.replace('.cpp', '.exe') 
+          : `${filename}.out`;
       }
     }
 

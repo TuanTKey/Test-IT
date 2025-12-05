@@ -34,23 +34,9 @@ const ProblemSolve = () => {
 `,
     javascript: `// Write your solution here
 `,
-    cpp: `#include <iostream>
-using namespace std;
-
-int main() {
-    // Write your solution here
-    
-    return 0;
-}
+    cpp: `// Write your solution here
 `,
-    java: `import java.util.Scanner;
-
-public class Solution {
-    public static void main(String[] args) {
-        // Write your solution here
-        
-    }
-}
+    java: `// Write your solution here
 `
   };
 
@@ -154,23 +140,55 @@ public class Solution {
       });
 
       if (response.data.error) {
+        // Parse và format lỗi đẹp hơn
+        const errorText = response.data.error;
+        let formattedErrors = [];
+        
+        // Kiểm tra loại lỗi
+        if (errorText.includes('error:') || errorText.includes('Error:')) {
+          // Lỗi compile - chỉ lấy phần quan trọng
+          const lines = errorText.split('\n');
+          formattedErrors = lines
+            .filter(line => line.includes('error:') || line.includes('Error:') || line.includes('note:'))
+            .map(line => {
+              // Loại bỏ đường dẫn dài, chỉ giữ tên file và thông báo lỗi
+              const match = line.match(/solution\.(cpp|py|js|java):(\d+):(\d+):\s*(error|note):\s*(.+)/);
+              if (match) {
+                const [, ext, lineNum, col, type, msg] = match;
+                return `Line ${lineNum}: ${msg}`;
+              }
+              // Fallback - lấy phần sau "error:" hoặc "Error:"
+              const errorMatch = line.match(/(error|Error):\s*(.+)/);
+              if (errorMatch) {
+                return errorMatch[2];
+              }
+              return line;
+            })
+            .filter(line => line.trim());
+        } else {
+          // Runtime error hoặc lỗi khác
+          formattedErrors = errorText.split('\n').filter(line => line.trim());
+        }
+
         setTerminalHistory(prev => [
           ...prev.slice(0, -1), // Remove "Executing..."
-          { type: 'error', text: response.data.error }
+          { type: 'error', text: '❌ Compilation/Runtime Error:' },
+          ...formattedErrors.map(line => ({ type: 'error', text: '   ' + line }))
         ]);
       } else {
         setTerminalHistory(prev => [
           ...prev.slice(0, -1), // Remove "Executing..."
           { type: 'output', text: response.data.output || '(no output)' },
-          { type: 'system', text: `✓ Done in ${response.data.executionTime || 0}ms` }
+          { type: 'success', text: `✓ Done in ${response.data.executionTime || 0}ms` }
         ]);
       }
 
     } catch (error) {
       console.error('Run error:', error);
+      const errorMsg = error.response?.data?.error || error.message || 'Failed to run code';
       setTerminalHistory(prev => [
         ...prev.slice(0, -1),
-        { type: 'error', text: error.response?.data?.error || error.message || 'Failed to run code' }
+        { type: 'error', text: '❌ Error: ' + errorMsg }
       ]);
     } finally {
       setRunning(false);
@@ -527,12 +545,13 @@ public class Solution {
                   <div key={index} className={`${
                     item.type === 'system' ? 'text-gray-400' :
                     item.type === 'input' ? 'text-green-400' :
-                    item.type === 'output' ? 'text-cyan-400' :
+                    item.type === 'output' ? 'text-white' :
                     item.type === 'error' ? 'text-red-400' :
+                    item.type === 'success' ? 'text-green-400' :
                     'text-white'
-                  }`}>
+                  } ${item.type === 'error' ? 'bg-red-900/20 px-2 py-0.5 rounded' : ''}`}>
                     {item.type === 'input' && <span className="text-yellow-400">{'>'} </span>}
-                    <span className="whitespace-pre-wrap">{item.text}</span>
+                    <span className="whitespace-pre-wrap font-mono">{item.text}</span>
                   </div>
                 ))}
 
@@ -570,6 +589,19 @@ public class Solution {
                   <div className="flex items-center text-yellow-400 mt-1">
                     <div className="animate-spin rounded-full h-3 w-3 border-2 border-yellow-400 border-t-transparent mr-2"></div>
                     <span>Running...</span>
+                  </div>
+                )}
+
+                {/* Run Again Button - shows after execution is done */}
+                {!running && !waitingForInput && terminalHistory.length > 0 && (
+                  <div className="mt-3 pt-2 border-t border-gray-800">
+                    <button
+                      onClick={handleRun}
+                      className="flex items-center space-x-1.5 text-sm px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+                    >
+                      <Play size={14} fill="currentColor" />
+                      <span>Run Again</span>
+                    </button>
                   </div>
                 )}
 
