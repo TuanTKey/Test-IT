@@ -21,6 +21,8 @@ import AdminProblems from './components/admin/AdminProblems';
 import CreateProblem from './components/admin/CreateProblem';
 import AdminUsers from './components/admin/AdminUsers';
 import AdminSubmissions from './components/admin/AdminSubmissions';
+import AdminProblemSubmissions from './components/admin/AdminProblemSubmissions';
+import AdminContestSubmissions from './components/admin/AdminContestSubmissions';
 import EditProblem from './components/admin/EditProblem';
 import AdminContests from './components/admin/AdminContests';
 import CreateContest from './components/contests/CreateContest';
@@ -69,6 +71,8 @@ function AppRoutes() {
         <Route path="/admin/problems/edit/:id" element={<AdminRoute><EditProblem /></AdminRoute>} />
         
         <Route path="/admin/submissions" element={<AdminRoute><AdminSubmissions /></AdminRoute>} />
+        <Route path="/admin/submissions/problems" element={<AdminRoute><AdminProblemSubmissions /></AdminRoute>} />
+        <Route path="/admin/submissions/contests" element={<AdminRoute><AdminContestSubmissions /></AdminRoute>} />
         
         <Route path="/admin/users" element={<AdminRoute><AdminUsers /></AdminRoute>} />
         

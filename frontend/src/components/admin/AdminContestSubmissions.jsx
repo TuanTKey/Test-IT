@@ -1,39 +1,39 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import api from '../../services/api';
-import { Eye, Filter, Code, Users, BookOpen, CheckCircle, Clock, Search, RefreshCw, FileText, Trophy } from 'lucide-react';
+import { Eye, Code, Users, Trophy, CheckCircle, Search, RefreshCw, Award, Clock, FileText } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
-const AdminSubmissions = () => {
+const AdminContestSubmissions = () => {
   const [submissions, setSubmissions] = useState([]);
   const [filteredSubmissions, setFilteredSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedClass, setSelectedClass] = useState('all');
-  const [selectedProblem, setSelectedProblem] = useState('all');
+  const [selectedContest, setSelectedContest] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSubmission, setSelectedSubmission] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [classes, setClasses] = useState([]);
-  const [problems, setProblems] = useState([]);
+  const [contests, setContests] = useState([]);
 
   useEffect(() => {
     fetchSubmissions();
     fetchClasses();
-    fetchProblems();
+    fetchContests();
   }, []);
 
   useEffect(() => {
     filterSubmissions();
-  }, [submissions, selectedClass, selectedProblem, searchTerm]);
+  }, [submissions, selectedClass, selectedContest, searchTerm]);
 
   const fetchSubmissions = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/submissions/admin/all?limit=200');
-      // Chỉ lấy bài nộp thành công
-      const successfulSubmissions = (response.data.submissions || [])
-        .filter(sub => sub.status === 'accepted');
-      setSubmissions(successfulSubmissions);
+      const response = await api.get('/submissions/admin/all?limit=500');
+      // Chỉ lấy bài nộp thuộc CONTEST (bài thi)
+      const contestSubmissions = (response.data.submissions || [])
+        .filter(sub => sub.status === 'accepted' && sub.contestId);
+      setSubmissions(contestSubmissions);
     } catch (error) {
       console.error('Error fetching submissions:', error);
       alert('Failed to load submissions');
@@ -51,7 +51,6 @@ const AdminSubmissions = () => {
       }))]);
     } catch (error) {
       console.error('Error fetching classes:', error);
-      // Fallback classes
       setClasses([
         { id: 'all', name: 'Tất cả lớp' },
         { id: '10A1', name: '10A1' },
@@ -63,31 +62,26 @@ const AdminSubmissions = () => {
     }
   };
 
-  const fetchProblems = async () => {
+  const fetchContests = async () => {
     try {
-      const response = await api.get('/problems?limit=100');
-      setProblems([{ id: 'all', title: 'Tất cả bài tập' }, ...(response.data.problems || [])]);
+      const response = await api.get('/contests');
+      setContests([{ _id: 'all', title: 'Tất cả cuộc thi' }, ...(response.data.contests || response.data || [])]);
     } catch (error) {
-      console.error('Error fetching problems:', error);
+      console.error('Error fetching contests:', error);
     }
   };
 
   const filterSubmissions = () => {
     let filtered = submissions;
 
-    // Lọc theo lớp
     if (selectedClass !== 'all') {
-      filtered = filtered.filter(sub => {
-        return sub.userId?.class === selectedClass;
-      });
+      filtered = filtered.filter(sub => sub.userId?.class === selectedClass);
     }
 
-    // Lọc theo bài tập
-    if (selectedProblem !== 'all') {
-      filtered = filtered.filter(sub => sub.problemId?._id === selectedProblem);
+    if (selectedContest !== 'all') {
+      filtered = filtered.filter(sub => sub.contestId?._id === selectedContest || sub.contestId === selectedContest);
     }
 
-    // Lọc theo tên người dùng
     if (searchTerm) {
       filtered = filtered.filter(sub => 
         sub.userId?.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -98,17 +92,9 @@ const AdminSubmissions = () => {
     setFilteredSubmissions(filtered);
   };
 
-  const getStatusColor = (status) => {
-    return 'bg-green-100 text-green-800 border border-green-200';
-  };
-
-  const getStatusIcon = (status) => {
-    return <CheckCircle className="text-green-500" size={16} />;
-  };
-
-  const getStatusText = (status) => {
-    return 'HOÀN THÀNH';
-  };
+  const getStatusColor = () => 'bg-green-100 text-green-800 border border-green-200';
+  const getStatusIcon = () => <CheckCircle className="text-green-500" size={16} />;
+  const getStatusText = () => 'HOÀN THÀNH';
 
   const viewSubmission = async (submissionId) => {
     try {
@@ -122,29 +108,27 @@ const AdminSubmissions = () => {
   };
 
   const exportToExcel = () => {
-    // Tạo dữ liệu Excel
     const data = filteredSubmissions.map(sub => ({
       'Học sinh': sub.userId?.username,
       'Lớp': sub.userId?.class,
+      'Cuộc thi': sub.contestId?.title || 'N/A',
       'Bài tập': sub.problemId?.title,
       'Ngôn ngữ': sub.language,
       'Thời gian': `${sub.executionTime}ms`,
       'Thời gian nộp': new Date(sub.createdAt).toLocaleString('vi-VN')
     }));
 
-    // Tạo CSV
-    const headers = ['Học sinh', 'Lớp', 'Bài tập', 'Ngôn ngữ', 'Thời gian', 'Thời gian nộp'];
+    const headers = ['Học sinh', 'Lớp', 'Cuộc thi', 'Bài tập', 'Ngôn ngữ', 'Thời gian', 'Thời gian nộp'];
     const csvContent = [
       headers.join(','),
       ...data.map(row => Object.values(row).join(','))
     ].join('\n');
 
-    // Tạo file download
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
-    link.setAttribute('download', `bai_nop_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `bai_thi_${new Date().toISOString().split('T')[0]}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -165,9 +149,12 @@ const AdminSubmissions = () => {
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">Quản lý Bài Nộp</h1>
+            <div className="flex items-center space-x-3 mb-2">
+              <Trophy className="text-purple-600" size={32} />
+              <h1 className="text-3xl font-bold text-gray-800">Quản lý Submit Bài Thi</h1>
+            </div>
             <p className="text-gray-600">
-              {filteredSubmissions.length} bài nộp thành công • {new Set(filteredSubmissions.map(s => s.userId?._id)).size} học sinh
+              {filteredSubmissions.length} bài thi thành công • {new Set(filteredSubmissions.map(s => s.userId?._id)).size} học sinh
             </p>
           </div>
           <div className="flex space-x-3">
@@ -179,7 +166,7 @@ const AdminSubmissions = () => {
             </button>
             <button
               onClick={fetchSubmissions}
-              className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+              className="flex items-center space-x-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
             >
               <RefreshCw size={18} />
               <span>Refresh</span>
@@ -191,7 +178,7 @@ const AdminSubmissions = () => {
         <div className="bg-white rounded-xl shadow-md p-2 mb-6 flex space-x-2">
           <Link
             to="/admin/submissions"
-            className="flex-1 flex items-center justify-center space-x-2 bg-gradient-to-r from-gray-600 to-gray-700 text-white px-4 py-3 rounded-lg font-semibold"
+            className="flex-1 flex items-center justify-center space-x-2 bg-gray-100 text-gray-700 hover:bg-gray-200 px-4 py-3 rounded-lg font-semibold transition"
           >
             <CheckCircle size={20} />
             <span>Tất cả</span>
@@ -205,7 +192,7 @@ const AdminSubmissions = () => {
           </Link>
           <Link
             to="/admin/submissions/contests"
-            className="flex-1 flex items-center justify-center space-x-2 bg-purple-100 text-purple-700 hover:bg-purple-200 px-4 py-3 rounded-lg font-semibold transition"
+            className="flex-1 flex items-center justify-center space-x-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-4 py-3 rounded-lg font-semibold"
           >
             <Trophy size={20} />
             <span>Bài Thi</span>
@@ -215,7 +202,6 @@ const AdminSubmissions = () => {
         {/* Filters */}
         <div className="bg-white rounded-xl shadow-md p-6 mb-6">
           <div className="grid md:grid-cols-4 gap-4">
-            {/* Lọc theo lớp */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <Users className="inline w-4 h-4 mr-1" />
@@ -224,7 +210,7 @@ const AdminSubmissions = () => {
               <select
                 value={selectedClass}
                 onChange={(e) => setSelectedClass(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
               >
                 {classes.map(cls => (
                   <option key={cls.id} value={cls.id}>{cls.name}</option>
@@ -232,26 +218,24 @@ const AdminSubmissions = () => {
               </select>
             </div>
 
-            {/* Lọc theo bài tập */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                <BookOpen className="inline w-4 h-4 mr-1" />
-                Bài tập
+                <Trophy className="inline w-4 h-4 mr-1" />
+                Cuộc thi
               </label>
               <select
-                value={selectedProblem}
-                onChange={(e) => setSelectedProblem(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={selectedContest}
+                onChange={(e) => setSelectedContest(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
               >
-                {problems.map(problem => (
-                  <option key={problem.id} value={problem._id || problem.id}>
-                    {problem.title}
+                {contests.map(contest => (
+                  <option key={contest._id} value={contest._id}>
+                    {contest.title}
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* Tìm kiếm học sinh */}
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <Search className="inline w-4 h-4 mr-1" />
@@ -262,7 +246,7 @@ const AdminSubmissions = () => {
                 placeholder="Nhập tên học sinh..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
             </div>
           </div>
@@ -270,23 +254,23 @@ const AdminSubmissions = () => {
 
         {/* Statistics */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-xl shadow-md p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600">{filteredSubmissions.length}</div>
-            <div className="text-sm text-gray-600">Bài nộp</div>
+          <div className="bg-white rounded-xl shadow-md p-4 text-center border-l-4 border-purple-500">
+            <div className="text-2xl font-bold text-purple-600">{filteredSubmissions.length}</div>
+            <div className="text-sm text-gray-600">Bài thi</div>
           </div>
-          <div className="bg-white rounded-xl shadow-md p-4 text-center">
+          <div className="bg-white rounded-xl shadow-md p-4 text-center border-l-4 border-green-500">
             <div className="text-2xl font-bold text-green-600">
               {new Set(filteredSubmissions.map(s => s.userId?._id)).size}
             </div>
             <div className="text-sm text-gray-600">Học sinh</div>
           </div>
-          <div className="bg-white rounded-xl shadow-md p-4 text-center">
-            <div className="text-2xl font-bold text-purple-600">
-              {new Set(filteredSubmissions.map(s => s.problemId?._id)).size}
+          <div className="bg-white rounded-xl shadow-md p-4 text-center border-l-4 border-yellow-500">
+            <div className="text-2xl font-bold text-yellow-600">
+              {new Set(filteredSubmissions.map(s => s.contestId?._id || s.contestId)).size}
             </div>
-            <div className="text-sm text-gray-600">Bài tập</div>
+            <div className="text-sm text-gray-600">Cuộc thi</div>
           </div>
-          <div className="bg-white rounded-xl shadow-md p-4 text-center">
+          <div className="bg-white rounded-xl shadow-md p-4 text-center border-l-4 border-orange-500">
             <div className="text-2xl font-bold text-orange-600">
               {new Set(filteredSubmissions.map(s => s.userId?.class)).size}
             </div>
@@ -298,21 +282,21 @@ const AdminSubmissions = () => {
         <div className="bg-white rounded-xl shadow-md overflow-hidden">
           {filteredSubmissions.length === 0 ? (
             <div className="text-center py-12">
-              <CheckCircle size={48} className="mx-auto mb-4 text-gray-400" />
-              <p className="text-gray-500 text-lg">Không có bài nộp thành công nào</p>
+              <Trophy size={48} className="mx-auto mb-4 text-gray-400" />
+              <p className="text-gray-500 text-lg">Không có bài thi nào</p>
               <p className="text-sm text-gray-400 mt-2">Thử thay đổi bộ lọc để xem kết quả khác</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50 border-b">
+                <thead className="bg-purple-50 border-b">
                   <tr>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Học sinh</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Lớp</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Cuộc thi</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Bài tập</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Ngôn ngữ</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Trạng thái</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Thời gian</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Thời gian nộp</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Thao tác</th>
                   </tr>
@@ -322,7 +306,7 @@ const AdminSubmissions = () => {
                     <tr key={submission._id} className="hover:bg-gray-50">
                       <td className="px-6 py-4">
                         <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                          <div className="w-10 h-10 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
                             {submission.userId?.username?.[0]?.toUpperCase() || 'H'}
                           </div>
                           <div>
@@ -336,17 +320,22 @@ const AdminSubmissions = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold border border-blue-200">
+                        <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-semibold border border-purple-200">
                           {submission.userId?.class || 'N/A'}
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <Link
-                          to={`/problems/${submission.problemId?.slug}`}
-                          className="text-purple-600 hover:text-purple-800 font-medium block"
-                        >
+                        <div className="flex items-center space-x-2">
+                          <Award className="text-yellow-500" size={16} />
+                          <span className="font-medium text-gray-800">
+                            {submission.contestId?.title || 'N/A'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-purple-600 font-medium">
                           {submission.problemId?.title || 'Unknown Problem'}
-                        </Link>
+                        </span>
                         <div className="text-xs text-gray-500 mt-1">
                           Độ khó: <span className={`font-semibold ${
                             submission.problemId?.difficulty === 'easy' ? 'text-green-600' :
@@ -363,22 +352,22 @@ const AdminSubmissions = () => {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center space-x-2">
-                          {getStatusIcon(submission.status)}
-                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(submission.status)}`}>
-                            {getStatusText(submission.status)}
+                          {getStatusIcon()}
+                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor()}`}>
+                            {getStatusText()}
                           </span>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-gray-600 font-semibold">
-                        {submission.executionTime ? `${submission.executionTime}ms` : 'N/A'}
-                      </td>
                       <td className="px-6 py-4 text-gray-500 text-sm">
-                        {formatDistanceToNow(new Date(submission.createdAt), { addSuffix: true })}
+                        <div className="flex items-center space-x-1">
+                          <Clock size={14} />
+                          <span>{formatDistanceToNow(new Date(submission.createdAt), { addSuffix: true })}</span>
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <button
                           onClick={() => viewSubmission(submission._id)}
-                          className="flex items-center space-x-1 bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 text-sm"
+                          className="flex items-center space-x-1 bg-purple-600 text-white px-3 py-2 rounded-lg hover:bg-purple-700 text-sm"
                         >
                           <Eye size={14} />
                           <span>Xem code</span>
@@ -392,13 +381,13 @@ const AdminSubmissions = () => {
           )}
         </div>
 
-        {/* Submission Detail Modal */}
+        {/* Modal */}
         {showModal && selectedSubmission && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
               <div className="p-6">
                 <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-2xl font-bold text-gray-800">Chi tiết bài nộp</h2>
+                  <h2 className="text-2xl font-bold text-gray-800">Chi tiết bài thi</h2>
                   <button
                     onClick={() => setShowModal(false)}
                     className="text-gray-500 hover:text-gray-700 text-2xl"
@@ -407,9 +396,8 @@ const AdminSubmissions = () => {
                   </button>
                 </div>
 
-                {/* Submission Info */}
                 <div className="grid md:grid-cols-2 gap-6 mb-6">
-                  <div className="bg-gray-50 p-4 rounded-lg">
+                  <div className="bg-purple-50 p-4 rounded-lg">
                     <h3 className="font-semibold text-gray-700 mb-2">Thông tin học sinh</h3>
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
@@ -421,13 +409,17 @@ const AdminSubmissions = () => {
                         <span className="font-semibold">{selectedSubmission.userId?.class}</span>
                       </div>
                       <div className="flex justify-between">
+                        <span className="text-gray-600">Cuộc thi:</span>
+                        <span className="font-semibold">{selectedSubmission.contestId?.title || 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between">
                         <span className="text-gray-600">Bài tập:</span>
                         <span className="font-semibold">{selectedSubmission.problemId?.title}</span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="bg-gray-50 p-4 rounded-lg">
+                  <div className="bg-green-50 p-4 rounded-lg">
                     <h3 className="font-semibold text-gray-700 mb-2">Thông tin chấm điểm</h3>
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
@@ -448,7 +440,6 @@ const AdminSubmissions = () => {
                   </div>
                 </div>
 
-                {/* Code */}
                 <div className="mb-6">
                   <h3 className="font-semibold text-gray-700 mb-3 flex items-center">
                     <Code className="mr-2" size={18} />
@@ -459,7 +450,7 @@ const AdminSubmissions = () => {
                   </pre>
                 </div>
 
-                <div className="flex justify-end space-x-3">
+                <div className="flex justify-end">
                   <button
                     onClick={() => setShowModal(false)}
                     className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
@@ -476,4 +467,4 @@ const AdminSubmissions = () => {
   );
 };
 
-export default AdminSubmissions;
+export default AdminContestSubmissions;

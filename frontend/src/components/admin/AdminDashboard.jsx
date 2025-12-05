@@ -174,10 +174,16 @@ const AdminDashboard = () => {
                 Quản lý Users
               </Link>
               <Link
-                to="/admin/submissions"
+                to="/admin/submissions/problems"
+                className="block w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition text-center"
+              >
+                📝 Quản lý Submit Bài Tập
+              </Link>
+              <Link
+                to="/admin/submissions/contests"
                 className="block w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 transition text-center"
               >
-                Xem tất cả Submissions
+                🏆 Quản lý Submit Bài Thi
               </Link>
               <Link
                 to="/admin/classes"
